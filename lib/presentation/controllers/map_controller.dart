@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,24 +9,19 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 
 class MapController extends GetxController {
-  /// Current Location
   Rx<LatLng> current = LatLng(0, 0).obs;
-
-  /// Destination
   Rx<LatLng?> destination = Rx<LatLng?>(null);
-
-  /// Route Points
   RxList<LatLng> routePoints = <LatLng>[].obs;
-
-  /// Search Results
   RxList places = [].obs;
-
-  /// Distance & ETA
   RxString distance = "".obs;
   RxString duration = "".obs;
 
   StreamSubscription<Position>? positionStream;
   LatLng? previousPosition;
+  RxBool isLoading = true.obs;
+  RxBool isSearching = false.obs;
+  RxString errorMessage = "".obs;
+  Timer? debounce;
 
   @override
   void onInit() {
@@ -32,36 +29,73 @@ class MapController extends GetxController {
     initLocation();
   }
 
-  /// 📍 Get Current Location
+  Future<bool> checkInternet() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+
+    if (connectivityResult.first == ConnectivityResult.none) {
+      errorMessage.value = "No Internet Connection";
+      isLoading.value = false;
+      return false;
+    }
+
+    return true;
+  }
+
   void initLocation() async {
+    isLoading.value = true;
+    errorMessage.value = "";
+
+    bool hasInternet = await checkInternet();
+    if (!hasInternet) return;
+
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      Get.snackbar("Error", "GPS is disabled");
+      errorMessage.value = "Location (GPS) is OFF. Please enable it.";
+      isLoading.value = false;
       return;
     }
 
     LocationPermission permission = await Geolocator.checkPermission();
+
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
 
-    Position pos = await Geolocator.getCurrentPosition();
+    if (permission == LocationPermission.denied) {
+      errorMessage.value = "Location permission denied";
+      isLoading.value = false;
+      return;
+    }
 
-    current.value = LatLng(pos.latitude, pos.longitude);
+    if (permission == LocationPermission.deniedForever) {
+      errorMessage.value =
+      "Permission permanently denied. Enable from settings.";
+      isLoading.value = false;
+      return;
+    }
 
-    /// Live location updates
-    positionStream =
-        Geolocator.getPositionStream().listen((pos) {
-          LatLng newPos = LatLng(pos.latitude, pos.longitude);
-          animateMarker(newPos);
+    try {
+      Position pos = await Geolocator.getCurrentPosition();
 
-          if (destination.value != null) {
-            drawRoute();
-          }
-        });
+      current.value = LatLng(pos.latitude, pos.longitude);
+
+      positionStream =
+          Geolocator.getPositionStream().listen((pos) {
+            LatLng newPos = LatLng(pos.latitude, pos.longitude);
+            animateMarker(newPos);
+
+            if (destination.value != null) {
+              drawRoute();
+            }
+          });
+
+      isLoading.value = false;
+    } catch (e) {
+      errorMessage.value = "Failed to get location";
+      isLoading.value = false;
+    }
   }
 
-  /// 🔥 Smooth Marker Movement
   void animateMarker(LatLng newPosition) async {
     final old = previousPosition ?? newPosition;
 
@@ -75,13 +109,14 @@ class MapController extends GetxController {
 
     previousPosition = newPosition;
   }
-  Timer? debounce;
-  /// 🔍 Search Places (Nominatim)
+
   void search(String query) {
     if (debounce?.isActive ?? false) debounce!.cancel();
 
     debounce = Timer(Duration(milliseconds: 800), () async {
       if (query.isEmpty) return;
+
+       isSearching.value = true;
 
       final url =
           "https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5";
@@ -98,9 +133,12 @@ class MapController extends GetxController {
       } else {
         print("Search error");
       }
+
+      isSearching.value = false;
+
     });
   }
-  /// 📍 Select Place
+
   void selectPlace(int index) {
     final place = places[index];
 
@@ -110,11 +148,10 @@ class MapController extends GetxController {
     destination.value = LatLng(lat, lng);
 
     places.clear();
-
+    FocusManager.instance.primaryFocus?.unfocus();
     drawRoute();
   }
 
-  /// 🛣 Draw Route (OSRM)
   void drawRoute() async {
     if (destination.value == null) return;
 
@@ -156,7 +193,6 @@ class MapController extends GetxController {
         (durationSeconds / 60).toStringAsFixed(0) + " mins";
   }
 
-  /// 📏 Route Deviation Detection
   void checkRouteDeviation() {
     if (routePoints.isEmpty) return;
 
@@ -173,7 +209,6 @@ class MapController extends GetxController {
       }
     }
 
-    /// If user deviates more than 30 meters → recalc route
     if (minDistance > 30) {
       drawRoute();
     }

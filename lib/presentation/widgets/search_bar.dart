@@ -11,24 +11,46 @@ class SearchBarWidget extends StatelessWidget {
       children: [
         TextField(
           decoration: InputDecoration(
-            hintText: "Search location",
-            fillColor: Colors.white,
+            hintText: "Search destination...",
             filled: true,
+            fillColor: Colors.white,
+            prefixIcon: Icon(Icons.search),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
           onChanged: controller.search,
         ),
-        Obx(() => ListView.builder(
-          shrinkWrap: true,
-          itemCount: controller.places.length,
-          itemBuilder: (_, i) {
-            final place = controller.places[i];
-            return ListTile(
-              title: Text(place['display_name']),
-              onTap: () =>
-                  controller.selectPlace(i),
+
+        Obx(() {
+          if (controller.isSearching.value) {
+            return Container(
+              color: Colors.white,
+              padding: EdgeInsets.all(10),
+              child: Center(child: CircularProgressIndicator()),
             );
-          },
-        ))
+          }
+
+          if (controller.places.isEmpty) {
+            return SizedBox();
+          }
+
+          return Container(
+            color: Colors.white,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: controller.places.length,
+              itemBuilder: (context, index) {
+                final place = controller.places[index];
+
+                return ListTile(
+                  title: Text(place['display_name']),
+                  onTap: () => controller.selectPlace(index),
+                );
+              },
+            ),
+          );
+        }),
       ],
     );
   }
