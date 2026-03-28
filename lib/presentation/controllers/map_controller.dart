@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'package:navigation_app/app/constants/api_constants.dart';
 
 class MapController extends GetxController {
   Rx<LatLng> current = LatLng(0, 0).obs;
@@ -119,12 +120,12 @@ class MapController extends GetxController {
        isSearching.value = true;
 
       final url =
-          "https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5";
+          "${ApiConstants.search}?q=$query&format=json&limit=5";
 
       final response = await http.get(
         Uri.parse(url),
         headers: {
-          'User-Agent': 'navigation_app (your@email.com)',
+          'User-Agent': 'navigation_app (test@email.com)',
         },
       );
 
@@ -156,7 +157,7 @@ class MapController extends GetxController {
     if (destination.value == null) return;
 
     final url =
-        "https://router.project-osrm.org/route/v1/driving/"
+        "${ApiConstants.drivingAPI}/"
         "${current.value.longitude},${current.value.latitude};"
         "${destination.value!.longitude},${destination.value!.latitude}"
         "?overview=full&geometries=polyline";

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 
+import '../../app/constants/api_constants.dart';
+
 class DirectionsService {
   Future<Map<String, dynamic>> getRoute(
       double startLat,
@@ -10,7 +12,7 @@ class DirectionsService {
       double endLng) async {
 
     final url =
-        "https://router.project-osrm.org/route/v1/driving/"
+        "${ApiConstants.drivingAPI}/"
         "$startLng,$startLat;$endLng,$endLat"
         "?overview=full&geometries=polyline";
 
