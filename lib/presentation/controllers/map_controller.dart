@@ -12,11 +12,13 @@ import 'package:navigation_app/app/constants/api_constants.dart';
 class MapController extends GetxController {
   Rx<LatLng> current = LatLng(0, 0).obs;
   Rx<LatLng?> destination = Rx<LatLng?>(null);
-  RxList<LatLng> routePoints = <LatLng>[].obs;
+  RxList<List<LatLng>> routes = <List<LatLng>>[].obs;
+  RxInt selectedRouteIndex = 0.obs;
   RxList places = [].obs;
   RxString distance = "".obs;
   RxString duration = "".obs;
 
+  TextEditingController searchController = TextEditingController();
   StreamSubscription<Position>? positionStream;
   LatLng? previousPosition;
   RxBool isLoading = true.obs;
@@ -160,50 +162,50 @@ class MapController extends GetxController {
         "${ApiConstants.drivingAPI}/"
         "${current.value.longitude},${current.value.latitude};"
         "${destination.value!.longitude},${destination.value!.latitude}"
-        "?overview=full&geometries=polyline";
+        "?overview=full&geometries=polyline&alternatives=true";
 
     final response = await http.get(
       Uri.parse(url),
-      headers: {
-        'User-Agent': 'navigation_app',
-      },
+      headers: {'User-Agent': 'navigation_app'},
     );
 
     final data = json.decode(response.body);
 
-    if (data['routes'] == null || data['routes'].isEmpty) return;
+    if (data['routes'] == null) return;
 
-    final route = data['routes'][0];
+    routes.clear();
 
-    String geometry = route['geometry'];
-    var distanceMeters = route['distance'];
-    var durationSeconds = route['duration'];
+    for (var route in data['routes']) {
+      String geometry = route['geometry'];
 
-    List<PointLatLng> points =
-    PolylinePoints.decodePolyline(geometry);
+      List<PointLatLng> points =
+      PolylinePoints.decodePolyline(geometry);
 
-    if (points.isEmpty) return;
+      final latLngPoints =
+      points.map((p) => LatLng(p.latitude, p.longitude)).toList();
 
-    routePoints.value =
-        points.map((p) => LatLng(p.latitude, p.longitude)).toList();
+      routes.add(latLngPoints);
+    }
+
+    final selected = data['routes'][0];
 
     distance.value =
-        (distanceMeters / 1000).toStringAsFixed(2) + " km";
+        (selected['distance'] / 1000).toStringAsFixed(2) + " km";
 
     duration.value =
-        (durationSeconds / 60).toStringAsFixed(0) + " mins";
+        (selected['duration'] / 60).toStringAsFixed(0) + " mins";
   }
 
   void checkRouteDeviation() {
-    if (routePoints.isEmpty) return;
+    if (routes.isEmpty) return;
 
     final Distance distanceCalc = Distance();
 
     double minDistance = double.infinity;
 
-    for (var point in routePoints) {
+    for (var point in routes) {
       double d = distanceCalc.as(
-          LengthUnit.Meter, current.value, point);
+          LengthUnit.Meter, current.value, point[selectedRouteIndex.value]);
 
       if (d < minDistance) {
         minDistance = d;
@@ -213,6 +215,40 @@ class MapController extends GetxController {
     if (minDistance > 30) {
       drawRoute();
     }
+  }
+
+  void updateSelectedRouteInfo() async {
+    if (destination.value == null) return;
+
+    final url =
+        "${ApiConstants.drivingAPI}/"
+        "${current.value.longitude},${current.value.latitude};"
+        "${destination.value!.longitude},${destination.value!.latitude}"
+        "?overview=false&alternatives=true";
+
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {'User-Agent': 'navigation_app'},
+    );
+
+    final data = json.decode(response.body);
+
+    final selected = data['routes'][selectedRouteIndex.value];
+
+    distance.value =
+        (selected['distance'] / 1000).toStringAsFixed(2) + " km";
+
+    duration.value =
+        (selected['duration'] / 60).toStringAsFixed(0) + " mins";
+  }
+
+  void stopNavigation() {
+    destination.value = null;
+    routes.clear();
+    distance.value = "";
+    duration.value = "";
+    searchController.clear();
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override

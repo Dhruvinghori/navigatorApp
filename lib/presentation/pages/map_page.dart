@@ -46,16 +46,21 @@ class MapPage extends StatelessWidget {
                   userAgentPackageName: 'com.example.navigation_app',
                 ),
 
-                Obx(() => controller.routePoints.isEmpty
-                    ? SizedBox()
-                    : PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: controller.routePoints,
-                      strokeWidth: 5,
-                    )
-                  ],
-                )),
+                Obx(() {
+                  if (controller.routes.isEmpty) return SizedBox();
+
+                  return PolylineLayer(
+                    polylines: List.generate(controller.routes.length, (index) {
+                      return Polyline(
+                        points: controller.routes[index],
+                        strokeWidth: index == controller.selectedRouteIndex.value ? 6 : 4,
+                        color: index == controller.selectedRouteIndex.value
+                            ? Colors.blue
+                            : Colors.grey,
+                      );
+                    }),
+                  );
+                }),
 
                 Obx(() => MarkerLayer(
                   markers: [
@@ -117,6 +122,51 @@ class MapPage extends StatelessWidget {
                       ],
                     ),
                   ),
+                );
+              }),
+            ),
+
+            Positioned(
+              bottom: 120,
+              left: 10,
+              right: 10,
+              child: Obx(() {
+                if (controller.routes.length <= 1) return SizedBox();
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(controller.routes.length, (index) {
+                    return GestureDetector(
+                      onTap: () {
+                        controller.selectedRouteIndex.value = index;
+                        controller.updateSelectedRouteInfo();
+                      },
+                      child: Container(
+                        margin: EdgeInsets.symmetric(horizontal: 5),
+                        padding: EdgeInsets.all(8),
+                        color: controller.selectedRouteIndex.value == index
+                            ? Colors.blue
+                            : Colors.grey,
+                        child: Text("Route ${index + 1}",
+                            style: TextStyle(color: Colors.white)),
+                      ),
+                    );
+                  }),
+                );
+              }),
+            ),
+
+            Positioned(
+              top: 120,
+              right: 15,
+              child: Obx(() {
+                if (controller.destination.value == null) {
+                  return SizedBox();
+                }
+
+                return FloatingActionButton(
+                  onPressed: controller.stopNavigation,
+                  child: Icon(Icons.stop,size: 30,),
                 );
               }),
             ),

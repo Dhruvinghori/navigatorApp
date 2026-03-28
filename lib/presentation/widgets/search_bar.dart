@@ -10,6 +10,7 @@ class SearchBarWidget extends StatelessWidget {
     return Column(
       children: [
         TextField(
+          controller: controller.searchController,
           decoration: InputDecoration(
             hintText: "Search destination...",
             filled: true,

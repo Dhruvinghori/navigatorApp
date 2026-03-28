@@ -14,7 +14,7 @@ class DirectionsService {
     final url =
         "${ApiConstants.drivingAPI}/"
         "$startLng,$startLat;$endLng,$endLat"
-        "?overview=full&geometries=polyline";
+        "?overview=full&geometries=polyline&alternatives=true";
 
     final response = await http.get(Uri.parse(url));
     final data = json.decode(response.body);
